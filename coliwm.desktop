@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=ColiWM
+Comment=ColiWM Session
+Exec=python /home/hoang/.config/coliwm/coliconfig.py
+Type=Application
+Keywords=wm;tiling
