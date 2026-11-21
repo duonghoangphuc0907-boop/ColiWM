@@ -6,10 +6,10 @@ import os
 import select
 import subprocess
 import sys
-from Xlib import X, Xatom, XK, display
-from Xlib.error import XError
 from Xlib import X, Xatom, Xcursorfont, XK, display
+from Xlib.error import XError
 from Xlib.protocol import event
+
 
 class TilingWM:
     def __init__(self):
@@ -33,6 +33,7 @@ class TilingWM:
         self.border_width: int = 2
         self.bar_height: int = 26
         self.monocle: bool = False
+        self._single_move_step: int = 0
 
         # Colors
         cmap = self.screen.default_colormap
@@ -80,7 +81,7 @@ class TilingWM:
             sys.exit(1)
 
     def _set_root_cursor(self):
-        """Đặt con trỏ chuột mặc định rõ ràng trên root window."""
+        """Ensure a visible default pointer cursor is set on the root window."""
         try:
             cursor_font = self.dpy.open_font("cursor")
             cursor = cursor_font.create_glyph_cursor(
@@ -149,9 +150,9 @@ class TilingWM:
             (XK.XK_Tab, self.mod, lambda: self.cycle_focus(1)),
             (XK.XK_Tab, self.mod | X.ShiftMask, lambda: self.cycle_focus(-1)),
             (XK.XK_w, self.mod, self.window_switcher_menu),
+            (XK.XK_a, self.mod, self.move_window),
             (XK.XK_h, self.mod, lambda: self.adjust_master(-0.05)),
             (XK.XK_l, self.mod, lambda: self.adjust_master(0.05)),
-            (XK.XK_Return, self.mod | X.ShiftMask, self.promote_to_master),
             (XK.XK_c, self.mod, self.close_focused),
             (XK.XK_m, self.mod, self.toggle_monocle),
             (XK.XK_q, self.mod | X.ShiftMask, self.quit),
@@ -534,6 +535,76 @@ class TilingWM:
         except Exception:
             pass
 
+    def move_window(self):
+        """Move focused window: cycle single-window position, or reorder when >= 2 windows."""
+        if not self.clients or self.focused is None:
+            return
+
+        idx = next(
+            (i for i, c in enumerate(self.clients) if c.id == self.focused), None
+        )
+        if idx is None:
+            return
+
+        win = self.clients[idx]
+
+        # Single window on current desktop: cycle position/geometry
+        if len(self.clients) == 1:
+            top_offset = self.bar_height
+            usable_h = self.height - top_offset
+            usable_w = self.width
+
+            step = self._single_move_step % 4
+            self._single_move_step += 1
+
+            if step == 0:
+                self._place(
+                    win,
+                    x=self.gap,
+                    y=top_offset + self.gap,
+                    w=usable_w - 2 * self.gap,
+                    h=usable_h - 2 * self.gap,
+                )
+            elif step == 1:
+                self._place(
+                    win,
+                    x=self.gap,
+                    y=top_offset + self.gap,
+                    w=(usable_w - 3 * self.gap) // 2,
+                    h=usable_h - 2 * self.gap,
+                )
+            elif step == 2:
+                half_w = (usable_w - 3 * self.gap) // 2
+                self._place(
+                    win,
+                    x=2 * self.gap + half_w,
+                    y=top_offset + self.gap,
+                    w=half_w,
+                    h=usable_h - 2 * self.gap,
+                )
+            else:
+                box_w = max(200, int(usable_w * 0.7))
+                box_h = max(150, int(usable_h * 0.7))
+                self._place(
+                    win,
+                    x=self.gap * 2,
+                    y=top_offset + self.gap * 2,
+                    w=min(box_w, usable_w - 4 * self.gap),
+                    h=min(box_h, usable_h - 4 * self.gap),
+                )
+
+            self._focus_window(win)
+            return
+
+        # Multiple windows: promote from stack to master, or swap master with first stack client
+        if idx > 0:
+            moved = self.clients.pop(idx)
+            self.clients.insert(0, moved)
+        else:
+            self.clients[0], self.clients[1] = self.clients[1], self.clients[0]
+
+        self.tile()
+
     def adjust_master(self, delta: float):
         self.master_ratio = min(0.8, max(0.2, self.master_ratio + delta))
         self.tile()
@@ -594,64 +665,62 @@ class TilingWM:
                         continue
 
                 while self.dpy.pending_events() > 0:
-                    event = self.dpy.next_event()
+                    ev = self.dpy.next_event()
 
-                    if event.type == X.Expose and event.window.id == self.bar.id:
+                    if ev.type == X.Expose and ev.window.id == self.bar.id:
                         self.draw_bar()
 
-                    elif (
-                        event.type == X.ButtonPress and event.window.id == self.bar.id
-                    ):
-                        self._handle_bar_click(event.event_x)
+                    elif ev.type == X.ButtonPress and ev.window.id == self.bar.id:
+                        self._handle_bar_click(ev.event_x)
 
-                    elif event.type == X.MapRequest:
-                        if self._is_manageable(event.window):
-                            self.manage_window(event.window)
+                    elif ev.type == X.MapRequest:
+                        if self._is_manageable(ev.window):
+                            self.manage_window(ev.window)
                         else:
-                            event.window.map()
+                            ev.window.map()
 
-                    elif event.type == X.ConfigureRequest:
+                    elif ev.type == X.ConfigureRequest:
                         try:
-                            event.window.configure(
-                                x=event.x,
-                                y=event.y,
-                                width=event.width,
-                                height=event.height,
-                                border_width=event.border_width,
+                            ev.window.configure(
+                                x=ev.x,
+                                y=ev.y,
+                                width=ev.width,
+                                height=ev.height,
+                                border_width=ev.border_width,
                             )
                         except XError:
                             pass
                         if (
-                            self._find_window_desktop(event.window.id)
+                            self._find_window_desktop(ev.window.id)
                             == self.current_desktop
                         ):
                             self.tile()
 
-                    elif event.type == X.DestroyNotify:
-                        if event.window.id != self.root.id:
-                            self.unmanage_window(event.window.id)
+                    elif ev.type == X.DestroyNotify:
+                        if ev.window.id != self.root.id:
+                            self.unmanage_window(ev.window.id)
 
-                    elif event.type == X.UnmapNotify:
+                    elif ev.type == X.UnmapNotify:
                         if (
-                            event.window.id != self.root.id
-                            and not getattr(event, "send_event", False)
-                            and any(c.id == event.window.id for c in self.clients)
+                            ev.window.id != self.root.id
+                            and not getattr(ev, "send_event", False)
+                            and any(c.id == ev.window.id for c in self.clients)
                             and not self.monocle
                         ):
-                            self.unmanage_window(event.window.id)
+                            self.unmanage_window(ev.window.id)
 
-                    elif event.type == X.PropertyNotify:
-                        if event.atom in (Xatom.WM_NAME, self.atom_net_wm_name):
+                    elif ev.type == X.PropertyNotify:
+                        if ev.atom in (Xatom.WM_NAME, self.atom_net_wm_name):
                             self.draw_bar()
 
-                    elif event.type == X.EnterNotify:
-                        if any(c.id == event.window.id for c in self.clients):
-                            if event.window.id != self.focused:
-                                self._focus_window(event.window)
+                    elif ev.type == X.EnterNotify:
+                        if any(c.id == ev.window.id for c in self.clients):
+                            if ev.window.id != self.focused:
+                                self._focus_window(ev.window)
 
-                    elif event.type == X.KeyPress:
-                        clean_state = event.state & ~(X.LockMask | X.Mod2Mask)
-                        handler = self._key_actions.get((event.detail, clean_state))
+                    elif ev.type == X.KeyPress:
+                        clean_state = ev.state & ~(X.LockMask | X.Mod2Mask)
+                        handler = self._key_actions.get((ev.detail, clean_state))
                         if handler:
                             handler()
         except KeyboardInterrupt:
