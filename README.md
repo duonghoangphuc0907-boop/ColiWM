@@ -19,7 +19,7 @@ ALT + M: toggle moncle layout
 
 ALT + SHIFT + Q: logouts wm
 
-Pre-installed apps:
+Pre-installed apps on NixOS:
 
 Dolphin
 
