@@ -11,7 +11,7 @@ ALT + J or ALT + K: Cycle focus through managed windows
 
 ALT + H or ALT + L: Shrink / grow master area width
 
-ALT + A: Moves window
+ALT + A: Moves window on other sides
 
 ALT + C: Closes window
 
