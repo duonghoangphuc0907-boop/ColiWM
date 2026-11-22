@@ -9,6 +9,7 @@
   makeWrapper,
   alacritty,
   firefox,
+  xorg.xrandr,
 }:
 
 python3Packages.buildPythonApplication {
