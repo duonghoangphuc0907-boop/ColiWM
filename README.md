@@ -1,3 +1,4 @@
+https://github.com/duonghoangphuc0907-boop/ColiWM/blob/main/.config/coliwm/Untitled.png
 # ColiWM
 A Xorg tilling window manager written and configured entirely in Python.
 
