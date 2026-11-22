@@ -33,7 +33,11 @@ class TilingWM:
         self.border_width: int = 2
         self.bar_height: int = 26
         self.monocle: bool = False
-        self._single_move_step: int = 0
+
+        # Interactive pointer-drag state (toggled via Alt + A)
+        self.dragging_win = None
+        self._drag_offset_x: int = 0
+        self._drag_offset_y: int = 0
 
         # Colors
         cmap = self.screen.default_colormap
@@ -69,6 +73,7 @@ class TilingWM:
             X.SubstructureRedirectMask
             | X.SubstructureNotifyMask
             | X.StructureNotifyMask
+            | X.PointerMotionMask
         )
         try:
             self.root.change_attributes(event_mask=mask)
@@ -266,6 +271,8 @@ class TilingWM:
             pass
 
     def unmanage_window(self, win_id: int):
+        if self.dragging_win is not None and self.dragging_win.id == win_id:
+            self.dragging_win = None
         d_idx = self._find_window_desktop(win_id)
         if d_idx is None:
             return
@@ -300,6 +307,8 @@ class TilingWM:
         if target < 0 or target >= self.num_desktops or target == self.current_desktop:
             return
 
+        self.dragging_win = None
+
         for c in self.clients:
             try:
                 c.unmap()
@@ -322,6 +331,9 @@ class TilingWM:
         win = next((c for c in self.clients if c.id == self.focused), None)
         if not win:
             return
+
+        if self.dragging_win is not None and self.dragging_win.id == win.id:
+            self.dragging_win = None
 
         self.clients = [c for c in self.clients if c.id != win.id]
         self.focused = self.clients[-1].id if self.clients else None
@@ -536,89 +548,73 @@ class TilingWM:
             pass
 
     def move_window(self):
-        """Move focused window: cycle single-window position, or reorder when >= 2 windows."""
+        """Toggle interactive mouse-drag mode for the focused window (Alt + A)."""
+        if self.dragging_win is not None:
+            self.dragging_win = None
+            self.dpy.flush()
+            return
+
         if not self.clients or self.focused is None:
             return
 
-        idx = next(
-            (i for i, c in enumerate(self.clients) if c.id == self.focused), None
-        )
-        if idx is None:
+        win = next((c for c in self.clients if c.id == self.focused), None)
+        if not win:
             return
 
-        win = self.clients[idx]
+        try:
+            geom = win.get_geometry()
+            ptr = self.root.query_pointer()
+            win.raise_window()
+            win.set_input_focus(X.RevertToPointerRoot, X.CurrentTime)
 
-        # Single window on current desktop: cycle position/geometry
-        if len(self.clients) == 1:
-            top_offset = self.bar_height
-            usable_h = self.height - top_offset
-            usable_w = self.width
+            px, py = ptr.root_x, ptr.root_y
+            if not (
+                geom.x <= px <= geom.x + geom.width
+                and geom.y <= py <= geom.y + geom.height
+            ):
+                target_x = geom.x + geom.width // 2
+                target_y = geom.y + geom.height // 2
+                self.root.warp_pointer(target_x, target_y)
+                px, py = target_x, target_y
 
-            step = self._single_move_step % 4
-            self._single_move_step += 1
+            self._drag_offset_x = px - geom.x
+            self._drag_offset_y = py - geom.y
+            self.dragging_win = win
+            self.dpy.flush()
+        except XError:
+            self.dragging_win = None
 
-            if step == 0:
-                self._place(
-                    win,
-                    x=self.gap,
-                    y=top_offset + self.gap,
-                    w=usable_w - 2 * self.gap,
-                    h=usable_h - 2 * self.gap,
-                )
-            elif step == 1:
-                self._place(
-                    win,
-                    x=self.gap,
-                    y=top_offset + self.gap,
-                    w=(usable_w - 3 * self.gap) // 2,
-                    h=usable_h - 2 * self.gap,
-                )
-            elif step == 2:
-                half_w = (usable_w - 3 * self.gap) // 2
-                self._place(
-                    win,
-                    x=2 * self.gap + half_w,
-                    y=top_offset + self.gap,
-                    w=half_w,
-                    h=usable_h - 2 * self.gap,
-                )
-            else:
-                box_w = max(200, int(usable_w * 0.7))
-                box_h = max(150, int(usable_h * 0.7))
-                self._place(
-                    win,
-                    x=self.gap * 2,
-                    y=top_offset + self.gap * 2,
-                    w=min(box_w, usable_w - 4 * self.gap),
-                    h=min(box_h, usable_h - 4 * self.gap),
-                )
-
-            self._focus_window(win)
+    def _update_drag_position(self, root_x: int, root_y: int):
+        """Move the currently dragged window smoothly with pointer motion."""
+        win = self.dragging_win
+        if win is None:
             return
 
-        # Multiple windows: promote from stack to master, or swap master with first stack client
-        if idx > 0:
-            moved = self.clients.pop(idx)
-            self.clients.insert(0, moved)
-        else:
-            self.clients[0], self.clients[1] = self.clients[1], self.clients[0]
+        if not any(c.id == win.id for c in self.clients):
+            self.dragging_win = None
+            return
 
-        self.tile()
+        try:
+            geom = win.get_geometry()
+            total_w = geom.width + 2 * self.border_width
+            total_h = geom.height + 2 * self.border_width
+
+            min_x = self.gap
+            min_y = self.bar_height + self.gap
+            max_x = max(min_x, self.width - total_w - self.gap)
+            max_y = max(min_y, self.height - total_h - self.gap)
+
+            new_x = max(min_x, min(max_x, root_x - self._drag_offset_x))
+            new_y = max(min_y, min(max_y, root_y - self._drag_offset_y))
+
+            win.configure(x=new_x, y=new_y)
+            self.dpy.flush()
+        except XError:
+            self.dragging_win = None
 
     def adjust_master(self, delta: float):
         self.master_ratio = min(0.8, max(0.2, self.master_ratio + delta))
         self.tile()
-
-    def promote_to_master(self):
-        if len(self.clients) < 2 or self.focused is None:
-            return
-        idx = next(
-            (i for i, c in enumerate(self.clients) if c.id == self.focused), None
-        )
-        if idx is not None and idx > 0:
-            win = self.clients.pop(idx)
-            self.clients.insert(0, win)
-            self.tile()
 
     def close_focused(self):
         if self.focused is None:
@@ -672,6 +668,10 @@ class TilingWM:
 
                     elif ev.type == X.ButtonPress and ev.window.id == self.bar.id:
                         self._handle_bar_click(ev.event_x)
+
+                    elif ev.type == X.MotionNotify:
+                        if self.dragging_win is not None:
+                            self._update_drag_position(ev.root_x, ev.root_y)
 
                     elif ev.type == X.MapRequest:
                         if self._is_manageable(ev.window):
