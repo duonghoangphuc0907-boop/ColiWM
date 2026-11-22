@@ -36,4 +36,6 @@ Dmenu
 
 alacritty
 
+Firefox
+
 The config file was stored inside ~/.config/coliwm/coliconfig.py.
