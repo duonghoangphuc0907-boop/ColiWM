@@ -28,3 +28,5 @@ XTerm
 Python
 
 Gedit
+
+The config file was stored inside ~/.config/coliwm/coliconfig.py.
