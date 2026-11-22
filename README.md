@@ -1,4 +1,5 @@
-https://github.com/duonghoangphuc0907-boop/ColiWM/blob/main/.config/coliwm/Untitled.png
+<div align="center">
+  <img src=".config/coliwm/Untitled.png" alt="ColiWM Logo" width="120"/>
 # ColiWM
 A Xorg tilling window manager written and configured entirely in Python.
 
