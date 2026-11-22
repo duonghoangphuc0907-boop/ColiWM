@@ -34,4 +34,6 @@ Gedit
 
 Dmenu
 
+alacritty
+
 The config file was stored inside ~/.config/coliwm/coliconfig.py.
