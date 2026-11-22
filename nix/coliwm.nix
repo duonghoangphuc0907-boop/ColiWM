@@ -7,6 +7,7 @@
   kdePackages.dolphin,
   gedit,
   makeWrapper,
+  alacritty,
 }:
 
 python3Packages.buildPythonApplication {
