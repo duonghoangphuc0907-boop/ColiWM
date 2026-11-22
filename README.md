@@ -2,7 +2,7 @@
   <img src=".config/coliwm/Untitled.png" alt="ColiWM Logo" width="120"/>
 
   # ColiWM
-A Xorg tilling window manager written and configured entirely in Python.
+tilling window manager written in Python.
 
 Keybindings:
 
