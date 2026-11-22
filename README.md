@@ -32,4 +32,6 @@ Python
 
 Gedit
 
+Dmenu
+
 The config file was stored inside ~/.config/coliwm/coliconfig.py.
