@@ -8,6 +8,7 @@
   gedit,
   makeWrapper,
   alacritty,
+  firefox,
 }:
 
 python3Packages.buildPythonApplication {
