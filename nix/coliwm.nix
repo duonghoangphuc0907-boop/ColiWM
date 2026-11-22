@@ -11,7 +11,7 @@
 
 python3Packages.buildPythonApplication {
   pname = "coliwm";
-  version = "0.1.0";
+  version = "0.10.0";
   pyproject = false;
 
   src = ./.;
