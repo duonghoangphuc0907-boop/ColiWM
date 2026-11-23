@@ -1,4 +1,0 @@
-- name: APT eatmydata
-  # You may pin to the exact commit or the version.
-  # uses: firebuild/apt-eatmydata-action@1ffc51fd041ed87dcc2ef405913baec405763640
-  uses: firebuild/apt-eatmydata-action@v1
