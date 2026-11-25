@@ -4,7 +4,7 @@
   # ColiWM
 tilling window manager written in Python.
 
-Install
+# Install
 
 $ git clone https://github.com/duonghoangphuc0907-boop/ColiWM
 
