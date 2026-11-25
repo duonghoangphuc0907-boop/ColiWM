@@ -21,7 +21,6 @@ help:
 	@echo "  make uninstall      Remove installed user config and wrapper"
 	@echo "  make xephyr         Launch Xephyr on $(XEPHYR_DISPLAY) and run ColiWM inside it"
 	@echo "  make check          Run Python syntax check and basic static checks"
-	@echo "  make nix-build      Build package via $(NIX_FILE)"
 	@echo "  make clean          Remove Nix ./result symlink and local test artifacts"
 
 install: check
