@@ -4,6 +4,14 @@
   # ColiWM
 tilling window manager written in Python.
 
+Install
+
+git clone https://github.com/duonghoangphuc0907-boop/ColiWM
+cd ColiWM
+make
+sudo make install
+sudo make install-system
+
 Keybindings:
 
 Alt + Return: Xterm
