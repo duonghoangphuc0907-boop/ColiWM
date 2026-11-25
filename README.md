@@ -6,15 +6,15 @@ tilling window manager written in Python.
 
 # Install
 
-$ git clone https://github.com/duonghoangphuc0907-boop/ColiWM
+git clone https://github.com/duonghoangphuc0907-boop/ColiWM
 
-$ cd ColiWM
+cd ColiWM
 
-$ make
+make
 
-$ sudo make install
+sudo make install
 
-$ sudo make install-system
+sudo make install-system
 
 # Keybindings:
 
