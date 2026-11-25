@@ -16,7 +16,7 @@ $ sudo make install
 
 $ sudo make install-system
 
-Keybindings:
+# Keybindings:
 
 Alt + Return: Xterm
 
